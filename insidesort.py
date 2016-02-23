@@ -9,7 +9,6 @@ from collections import (
 
 from copy import deepcopy as cp
 
-from Tests import TESTS as examples
 from Tests import TOY as examples
 
 
