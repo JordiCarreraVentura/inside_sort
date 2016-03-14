@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import math
 import re
+import sys
 
 from collections import (
     Counter,
@@ -34,17 +35,25 @@ def remove_punct(string):
 
 
 class InsideSort:
-    
+
     def __init__(
         self,
-        window=3,
-        min_part_size=1
-#         min_part_size=3
+        window=6,
+#         min_part_size=1
+        min_part_size=10
     ):
         self.min_part_size = min_part_size
         self.window = window
-   
+        self.original = []
+        self.inverted_index = deft(set)
+
+    def __set(self, tokenized):
+        self.original = tokenized
+        for i, instance in enumerate(tokenized):
+            self.inverted_index[tuple(instance)].add(i)
+
     def __call__(self, tokenized):
+        self.__set(tokenized)
         partitions = [(True, [], cp(tokenized))]
         while True:
             _partitions = self.__partition(partitions)
@@ -54,14 +63,21 @@ class InsideSort:
             else:
                 partitions = _partitions
         return self.__serialize(partitions)
-    
+
     def __serialize(self, partitions):
         rows = []
+        to_cover = set(range(len(self.original)))
+        covered = set([])
         for i, (state, history, p) in enumerate(partitions):
             for instance in p:
+                covered.update(self.inverted_index[tuple([w.lower() for w in instance])])
                 rows.append((i, history, instance))
+
+        for j in to_cover - covered:
+            rows.append((i + 1, ['*'], self.original[j]))
+
         return rows
-    
+
     def __partition(self, partitions):
         new = []
         for state, history, p in partitions:
@@ -70,20 +86,20 @@ class InsideSort:
             else:
                 new.append((state, history, p))
         return new
-    
+
     def __partition_one(self, history, p):
         centers, index, freq = self.__find_centers(p)
         self.__to_sets(index)
         gravities = self.__to_gravity(centers, freq)
         parts = self.__sort(history, p, index, gravities)
         return parts
-        
+
     def __sort(self, history, p, index, gravities):
         corr = self.__assign_all(p, index, gravities)
         self.__auto_sort(corr)
         tagged = zip(p, corr)
         return self.__grouped(history, tagged)
-   
+
     def __grouped(self, history, tagged):
 
         groups = deft(list)
@@ -120,19 +136,20 @@ class InsideSort:
 
         return grouped
 
-    
+
     def __auto_sort(self, corr):
         unique_index = dict([])
         unique_dist = Counter()
         self.__sort_non_unique(unique_index, unique_dist, corr)
         self.__sort_unique(unique_index, unique_dist, corr)
-    
+
     def __sort_non_unique(self, unique_index, unique_dist, corr):
         for i, seq in enumerate(corr):
             #
             if not seq:
                 corr[i] = None
                 continue
+
             unique, non_unique = self.__dissociate(seq)
             #
             if non_unique:
@@ -146,7 +163,7 @@ class InsideSort:
                 unique_index[i] = unique
             else:
                 corr[i] = None
-    
+
     def __sort_unique(self, unique_index, unique_dist, corr):
         for i, unique in unique_index.items():
             corr[i] = sorted(
@@ -154,7 +171,7 @@ class InsideSort:
                 key=lambda x: unique_dist[x[0]],
                 reverse=True
             )[0][0]
-    
+
     def __dissociate(self, seq):
         non_unique = []
         unique = []
@@ -164,7 +181,7 @@ class InsideSort:
             else:
                 non_unique.append((w, f))
         return unique, non_unique
-    
+
     def __assign_all(self, p, index, gravities):
         corr = [[] for x in p]
         to_cover = set(range(len(p)))
@@ -179,13 +196,13 @@ class InsideSort:
         for missing in to_cover - covered:
             corr[missing].append((None, 0))
         return corr
-    
+
     def __recall(self, index, ww):
         recalled = Counter()
         for w in ww:
             recalled.update(index[w])
         return recalled.items()
-    
+
     def __find_centers(self, p):
         centers = deft(Counter)
         index = deft(list)
@@ -200,7 +217,7 @@ class InsideSort:
                 freq[w] += 1
 
         for w, f in freq.items():
-            if f >= 2000:
+            if f >= 200:
                 del centers[w]
 
         return centers, index, freq
@@ -215,11 +232,11 @@ class InsideSort:
         ctxt = [_w for _w in instance[start:j] + instance[j + 1:end]
                 if not _w.isupper()]
         return ctxt
-    
+
     def __to_sets(self, index):
         for w, ii in index.items():
             index[w] = set(ii)
-    
+
     def __to_gravity(self, centers, freq):
         gravities = dict([])
         mass = float(sum(freq.values()))
@@ -229,7 +246,7 @@ class InsideSort:
                 continue
             most_freq = codist[0][1]
 #             topdist = [(w, f) for w, f in codist if f >= (most_freq * 0.1)]
-            topdist = [(w, f) for w, f in codist if f >= (most_freq * 0.5)]
+            topdist = [(w, f) for w, f in codist if f >= (most_freq * 0.8)]
             fxy_mass = freq[w]
             if fxy_mass < self.min_part_size or not topdist:
                 continue
@@ -250,13 +267,16 @@ class InsideSort:
 
 
 if __name__ == '__main__':
-    
+
+    file_from = sys.argv[1]
     sorter = InsideSort()
 
-    tokenized = [remove_punct(e.lower()).split() for e in examples]
-    
+#     tokenized = [remove_punct(e.lower()).split() for e in examples]
+    tokenized = [remove_punct(e.lower()).split()
+                 for e in open(file_from, 'rb').readlines()]
+
     _sorted = sorter(tokenized)
-    
+
     for cluster, feature_tree, instance in _sorted:
         print cluster, '\t', '/'.join(feature_tree), '\t', ' '.join(instance)
-    
+
