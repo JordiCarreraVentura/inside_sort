@@ -64,3 +64,6 @@ target/
 # Dev folders and files
 bkps/
 pre-repo/
+
+# Mac user
+.DS_Store
