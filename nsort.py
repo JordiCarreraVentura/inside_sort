@@ -27,12 +27,19 @@ from tools import (
 
 from tqdm import tqdm
 
+import sys
 
-
-#    [1]    3x the baseline
 
 class nsort:
+    """
+Main inside-sorting class. The intended meaning of "inside sorting"
+is a process by which records (strings of textual data, by
+assumption) are sorted not alphabetically but rather by the words
+they contain and, more specifically, significant word co-occurrence
+patterns often reflecting semantic relationships but not exclusively.
 
+
+"""
     def __init__(
         self,
         min_cluster=3,
@@ -42,9 +49,8 @@ class nsort:
         window=10,
         novel_ratio=0.75,
         doc_overlap=0.25,
-        min_assoc_multiplier=1,            # [2]  ToDo: seems useless, look into it.
+        min_assoc_multiplier=1,
         verbose=False,
-        #unigram_fallback='most_freq/near_third'
     ):
         self.min_cluster = min_cluster
         self.min_wfreq = min_wfreq
@@ -64,7 +70,8 @@ class nsort:
         self.assignments = deft(list)
         self.bowid_by_docid = dict([])
         self.verbose = verbose
-        if self.verbose: print self
+        self.log = sys.stderr
+        if self.verbose: self.log.write('%s\n' % str(self))
 
 
     def clear(self):
@@ -88,7 +95,9 @@ class nsort:
 
 
     def __hapax(self, rewritten):
-        if self.verbose: print 'counting words and searching for low frequency words...'
+        if self.verbose: self.log.write(
+            'counting words and searching for low frequency words...\n'
+        )
 
         if self.verbose:
             gtor = tqdm(rewritten)
@@ -107,12 +116,22 @@ class nsort:
 
 
     def __call__(self, documents):
+        """
+
+word2int.
+
+__hapax
+
+make_index
+
+cluster
+"""
         rewritten = self.word2int(documents)
         hapax = self.__hapax(rewritten)
         self.make_index(rewritten)
         return self.cluster(documents)
 
-    
+
     def word2int(self, documents):
         """Create an index of all the words in the input documents. Each word's in-
 dex will be a unique integer denoting the iteration number when it was first 
@@ -141,8 +160,8 @@ cuments. Then, transform the input documents from lists of strings to lists of i
                 self.bows_by_wid[wid].append(docid)
                 self.wids_by_bow[bowid].append(wid)
         self.__compile()
-    
-    
+
+
     def __window_update(self, doc):
         for i, wid in enumerate(doc):
             window = self.__window(i, doc)
@@ -159,14 +178,14 @@ cuments. Then, transform the input documents from lists of strings to lists of i
             maxim = len(doc)
         return doc[minim:i] + doc[j:maxim]
 
-    
+
     def __compile(self):
         for wid, bowids in self.bows_by_wid.items():
             self.bows_by_wid[wid] = set(bowids)
         for bowid, wids in self.wids_by_bow.items():
             self.wids_by_bow[bowid] = set(wids)
-    
-    
+
+
     def cluster(self, documents):
         space = [
             (tuple(sorted([wid])), set([wid]), cp(bowids))
@@ -176,18 +195,18 @@ cuments. Then, transform the input documents from lists of strings to lists of i
             _space = []
             assocs = []
             taken = set([])
-            
+
             if self.verbose:
                 gtor = tqdm(space)
             else:
                 gtor = space
-            
+
             for wid, cluster, subspace in gtor:
                 content_words = set([i for i in cluster if self.is_feature[i]])
                 if content_words < cluster:
                     continue
                 candidates = interset([self.window_by_wid[i] for i in cluster])
-                
+
                 for _wid in candidates:
                     if _wid in wid:
                         continue
@@ -210,7 +229,7 @@ cuments. Then, transform the input documents from lists of strings to lists of i
                     )
                     assocs.append((ratio, relation))
                     #_space.append(relation)
-            
+
             assocs.sort(reverse=True, key=lambda x: x[0] * len(x[1][2]))
             for ratio, relation in assocs:
                 key, cluster, subspace = relation
@@ -219,27 +238,29 @@ cuments. Then, transform the input documents from lists of strings to lists of i
                 if len(new) / len(subspace) < self.novel_ratio:    # parameter
                     continue
                 taken.update(subspace)
-                if self.verbose: print '\t+', ratio, tuple([self.ti[i] for i in key])
+                if self.verbose: self.log.write(
+                    '\t+%f %s\n' % (ratio, ' | '.join(tuple([self.ti[i] for i in key])))
+                )
                 _space.append((ratio, relation))
 
             space = self.__dissoc_best_relations_above_thresh(_space)
             self.__assignments(space)
-            if self.verbose: print 'went in %d, came out %d\n\n' % (
+            if self.verbose: self.log.write('went in %d, came out %d\n\n' % (
                 len(_space), len(space)
-            )
+            ))
             if not _space:
                 break
         return self.__sort()
-    
-    
+
+
     def __assignments(self, space):
         if not space:
             return
         for key, cluster, subspace in space:
             for bowid in subspace:
                 self.assignments[bowid].append(key)
-    
-    
+
+
     def __sort(self):
         out = []
         scores = deft(set)
@@ -258,8 +279,8 @@ cuments. Then, transform the input documents from lists of strings to lists of i
         remainder = self.__get_remainder(set(self.assignments.keys()))
         return [(len(scores[z[0]]), x, self.bowid_by_docid[y]) for x, y, z in out] +\
                 remainder
-    
-    
+
+
     def __get_remainder(self, covered):
         domain = set(range(len(self.bows)))
         diff = domain - covered
@@ -289,8 +310,8 @@ cuments. Then, transform the input documents from lists of strings to lists of i
             for ratio, relation in space
             if ratio > (baseline * self.min_assoc)
         ]
-    
-    
+
+
     def __baseline(self, space):
         if len(space) < self.baselines:
             k = len(space)
@@ -304,7 +325,20 @@ cuments. Then, transform the input documents from lists of strings to lists of i
 
 
 class nSort:
+    """
+Wrapper over the nsort class for iterative sorting. Each iteration's
+output is passed as input for the next iteration. In this way, the 
+sorting follows a cascade process whereby previous clusters are 
+further subdivided and previously undetected clusters become 
+increasingly clearer.
 
+The nSort class takes the same parameters as the nsort class. The 
+loop stops when no more clusters can be found with the sorting 
+parameters specified.
+
+For a detailed description of the parameters, run:
+
+'python inside_sort.py --help'."""
     def __init__(
         self,
 # 		min_cluster=2,
@@ -340,13 +374,22 @@ class nSort:
 
 
     def __call__(self, documents):
+        """
+Applies inside-sorting to the items stored in the variable
+'documents'. The variable is assumed to point to a Python iterator
+and the value returned with each iteration is assumed to be a string 
+denoting an input text of varying length but does not have to be 
+necessarily limited to strings.
+"""
         out = []
         space = [(i, tokenize(doc)) for i, doc in enumerate(documents)]
-        if self.verbose: print 'in', len(documents)
+        if self.verbose: self.ns.log.write('in %d\n' % len(documents))
         while True:
             clusters = self.ns(space)
             positives, negatives = self.__unzip(documents, clusters)
-            if self.verbose: print 'at', len(positives), len(negatives)
+            if self.verbose: self.ns.log.write(
+                'at %d %d\n' % (len(positives), len(negatives))
+            )
 #             out = positives + negatives
 #             break
             if not positives:
@@ -358,11 +401,11 @@ class nSort:
                 if negatives:
                     a, b, c, d = zip(*negatives)
                     space = zip(c, [tokenize(text) for text in d])
-        if self.verbose: print 'out', len(out)
+        if self.verbose: self.ns.log.write('out %d\n' % len(out))
         upperbound = max([x for x, _, _, _ in out])
         self.data = sorted(out, key=lambda x: (upperbound - x[0], x[1]))
-    
-    
+
+
     def __unzip(self, documents, clusters):
         positives, negatives = [], []
         for cluster in clusters:
@@ -374,24 +417,38 @@ class nSort:
                 negatives.append(_cluster)
         return positives, negatives
 
-    
+
     def __iter__(self):
+        """
+Allows to iterate over the sorted records. In each iteration, a tuple
+of the form <a, b> is returned, where 'a' denotes the feature that 
+triggered a cluster and 'b' denotes an item of the current cluster.
+
+The elements of each cluster are presented sequentially (i.e., there 
+is no output such that a record contains all the members of a 
+cluster. However, 'b' elements can be grouped by their correlated 'a'
+elements; in that case, the full list of 'b's associated with each 
+'a' now does represent all the members of the cluster defined by 'a')
+"""
         for count, feature_set, bowid, text in self.data:
             yield feature_set, text
-    
-    
+
+
     def texts(self):
+        """Returns the 'b' element from the class iterator method."""
         for features, text in self:
             yield text
-    
-    
+
+
     def features(self):
+        """Returns the 'a' element from the class iterator method."""
         for features, text in self:
             yield features
-    
-    
+
+
     def tuples(self):
+        """Synonym of the class iterator method."""
         for features, text in self:
             yield features, text
-            
+
 
