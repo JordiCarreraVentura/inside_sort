@@ -36,7 +36,8 @@ Main inside-sorting class. The intended meaning of "inside sorting"
 is a process by which records (strings of textual data, by
 assumption) are sorted not alphabetically but rather by the words
 they contain and, more specifically, significant word co-occurrence
-patterns often reflecting semantic relationships but not exclusively.
+patterns (often reflecting semantic relationships, but not
+exclusively).
 
 
 """
@@ -117,14 +118,98 @@ patterns often reflecting semantic relationships but not exclusively.
 
     def __call__(self, documents):
         """
+The call to the nsort class takes as input a list of tokenized
+documents (i.e., a list of strings, where each string is intended as
+a word and the list should generally be viewed as a full sentence or
+document).
 
-word2int.
+If called from within the nSort wrapper, tokenization will normally
+have  taken place within the latter by the time the call is made.
 
-__hapax
+The output is the list of clusters into which the incoming documents
+have been grouped. More specifically, the output consists of a list
+where  each item is a triple with the form <x,y,z> and where each
+element in the triple is defined as follows:
 
-make_index
+	a    int             Number of documents in a cluster.
 
-cluster
+	b    tuple:string    Features that triggered a cluster.
+
+	c    int             An index to an input document. Over the
+	                     the entire list, this amounts to the indexes
+	                     of all the input documents.
+
+The list is sorted by 'a' in descending order (larger clusters first)
+and then by 'c' in ascending order (features in alphabetical order).
+
+The call to the class goes through two normalization steps, one
+indexation step, and lastly the clustering loop.
+
+
+NORMALIZATION
+
+In the first normalization step, input documents are transformed into
+lists of integers. The integers are biunivocally mapped to words,
+i.e., each integer is an identifier that references some word and
+that word only. The mappings are stored in a TermIndex instance and
+can be recovered at any point; likewise, translating from words into
+integers or integers into words can be done as a simple lookup
+operation. During this pass, frequency counts are also calculated
+and they are kept for word indexes.
+
+
+DIMENSIONALITY REDUCTION
+
+Secondly, the frequency counts are used to reduce the dimensionality
+of the input. Any words occurring less than 'min_wfreq' times or
+more than 'max_wfreq' times (which can be set to either an integer
+denoting a frequency or a floating-point number denoting a ratio
+over the total number of documents) are removed at this point and do
+not undergo further processing.
+
+
+INDEXATION
+
+Thirdly, the output from the previous step (i.e., lists of integers
+with reduced dimensionality) is indexed, with instances being mapped
+to the words/integers they contain, so that, e.g., given any word and
+the set of document instances it appears in, any co-occurring words
+across all documents can be easily retrieved.
+
+
+CLUSTERING
+
+Lastly, the output from the previous step is passed as input for the
+clustering process. During clustering, the system iteratively merges
+any pair of smaller clusters sharing some word if that word  appears
+in a 'doc_overlap' ratio of the total number of documents currently
+in the cluster (so, each cluster is increasingly sub-divided into the
+ largest possible cluster as determined by the next highest-
+frequency word available within the cluster).
+
+As an additional condition, the words triggering a cluster must co-
+occur with the potential candidate for sub-dividing that cluster. The
+co-occurrence must happen within a window 'window' of words around
+each other.
+
+However, not every word meeting the previous conditions is used yet
+for subdividing a cluster. Instead, they are kept as candidates and
+sorted by the strength of their 'doc_overlap' association to the
+cluster (in descending order, i.e., stronger associations first).
+Candidates must also significantly outperform a number 'baselines' of
+baselines according to this score (i.e., the 'doc_overlap' for any
+candidate must be higher than for all of a 'baselines' number of
+words taken at random).
+
+The system then iterates over the sorted list and keeps the best
+candidate as long as it selects documents not previously selected by
+some higher-scoring candidate. In particular, a ratio 'novel_ratio'
+of all the documents selected by a new candidate cannot have been
+selected previously by any other candidate for the current one to be
+accepted.
+
+The process continues until there are no features left that select
+a cluster with a cardinality of at least 'min_cluster' items.
 """
         rewritten = self.word2int(documents)
         hapax = self.__hapax(rewritten)
@@ -133,10 +218,12 @@ cluster
 
 
     def word2int(self, documents):
-        """Create an index of all the words in the input documents. Each word's in-
-dex will be a unique integer denoting the iteration number when it was first 
-encountered as the call iterated through the sequence of every token in the do-
-cuments. Then, transform the input documents from lists of strings to lists of integers."""
+        """
+Create an index of all the words in the input documents. Each word's
+index will be a unique integer denoting the iteration number when it
+was first encountered as the call iterated through the sequence of
+every token in the documents. Then, transform the input documents
+from lists of strings to lists of integers."""
         rewritten = []
         for bowid, doc in documents:
             rwrtn = [self.ti(w) for w in doc]
@@ -327,13 +414,13 @@ cuments. Then, transform the input documents from lists of strings to lists of i
 class nSort:
     """
 Wrapper over the nsort class for iterative sorting. Each iteration's
-output is passed as input for the next iteration. In this way, the 
-sorting follows a cascade process whereby previous clusters are 
-further subdivided and previously undetected clusters become 
+output is passed as input for the next iteration. In this way, the
+sorting follows a cascade process whereby previous clusters are
+further subdivided and previously undetected clusters become
 increasingly clearer.
 
-The nSort class takes the same parameters as the nsort class. The 
-loop stops when no more clusters can be found with the sorting 
+The nSort class takes the same parameters as the nsort class. The
+loop stops when no more clusters can be found with the sorting
 parameters specified.
 
 For a detailed description of the parameters, run:
@@ -377,8 +464,8 @@ For a detailed description of the parameters, run:
         """
 Applies inside-sorting to the items stored in the variable
 'documents'. The variable is assumed to point to a Python iterator
-and the value returned with each iteration is assumed to be a string 
-denoting an input text of varying length but does not have to be 
+and the value returned with each iteration is assumed to be a string
+denoting an input text of varying length but does not have to be
 necessarily limited to strings.
 """
         out = []
@@ -421,13 +508,13 @@ necessarily limited to strings.
     def __iter__(self):
         """
 Allows to iterate over the sorted records. In each iteration, a tuple
-of the form <a, b> is returned, where 'a' denotes the feature that 
+of the form <a, b> is returned, where 'a' denotes the feature that
 triggered a cluster and 'b' denotes an item of the current cluster.
 
-The elements of each cluster are presented sequentially (i.e., there 
-is no output such that a record contains all the members of a 
+The elements of each cluster are presented sequentially (i.e., there
+is no output such that a record contains all the members of a
 cluster. However, 'b' elements can be grouped by their correlated 'a'
-elements; in that case, the full list of 'b's associated with each 
+elements; in that case, the full list of 'b's associated with each
 'a' now does represent all the members of the cluster defined by 'a')
 """
         for count, feature_set, bowid, text in self.data:
