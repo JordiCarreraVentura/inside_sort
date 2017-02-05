@@ -89,7 +89,7 @@ class Argparser:
         self.parser.add_argument(
             '--baselines',
             help=HELP['baselines'],
-            #type=int,
+            type=int,
             default=20
         )
             #
