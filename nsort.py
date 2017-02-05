@@ -385,8 +385,9 @@ from lists of strings to lists of integers."""
                 feature_set = tuple([self.ti[candidate_features[-1][1]]])
             triple = (feature_set, self.bowid_by_docid[i])
             remainder.append(triple)
-        freqDist = Counter(zip(*remainder)[0])
-        remainder = [(freqDist[x], x, y) for x, y in remainder]
+        if remainder:
+            freqDist = Counter(zip(*remainder)[0])
+            remainder = [(freqDist[x], x, y) for x, y in remainder]
         return remainder
 
 
@@ -428,14 +429,6 @@ For a detailed description of the parameters, run:
 'python inside_sort.py --help'."""
     def __init__(
         self,
-# 		min_cluster=2,
-# 		min_wfreq=1,
-# 		window=5,
-# 		max_wfreq=400,
-# 		baselines=20,
-# 		min_assoc_multiplier=1,
-# 		novel_ratio=0.2,
-# 		doc_overlap=0.1
 		min_cluster=3,
 		min_wfreq=3,
 		window=20,
@@ -488,6 +481,8 @@ necessarily limited to strings.
                 if negatives:
                     a, b, c, d = zip(*negatives)
                     space = zip(c, [tokenize(text) for text in d])
+                else:
+                    space = []
         if self.verbose: self.ns.log.write('out %d\n' % len(out))
         upperbound = max([x for x, _, _, _ in out])
         self.data = sorted(out, key=lambda x: (upperbound - x[0], x[1]))
