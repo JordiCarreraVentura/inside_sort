@@ -20,6 +20,7 @@ from tools import (
     average,
     cat_dedup,
     e,
+    format_min_wfreq,
     interset,
     tokenize,
     union_set
@@ -89,10 +90,12 @@ exclusively).
 
     def __str__(self):
         return """<%s with parameters <
+    max_wfreq=%f
+    min_wfreq=%d
     min_cluster=%d
     baselines=%d
     min_assoc=%d
->>""" % ('nsort.nsort instance', self.min_cluster, self.baselines, self.min_assoc)
+>>""" % ('nsort.nsort instance', self.max_wfreq, self.min_wfreq, self.min_cluster, self.baselines, self.min_assoc)
 
 
     def __hapax(self, rewritten):
@@ -439,6 +442,7 @@ For a detailed description of the parameters, run:
 		doc_overlap=0.1,
 		verbose=False,
     ):
+        max_wfreq = format_min_wfreq(max_wfreq)
         self.ns = nsort(
             min_cluster=min_cluster,
             min_wfreq=min_wfreq,
@@ -451,6 +455,10 @@ For a detailed description of the parameters, run:
             verbose=verbose
         )
         self.verbose = verbose
+
+
+    def __str__(self):
+        return str(self.ns)
 
 
     def __call__(self, documents):

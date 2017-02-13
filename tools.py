@@ -5,7 +5,7 @@ from nltk import sent_tokenize as splitter
 
 
 WORDS = re.compile('[a-z]+', re.IGNORECASE)
-
+FLOAT = re.compile('^(1\.0|0\.[0-9]+)$')
 
 def tokenize(string):
     return [
@@ -65,3 +65,10 @@ def encode(string):
         return string.encode('utf-8')
     except Exception:
         return string
+
+
+def format_min_wfreq(freq_par):
+    if FLOAT.match(freq_par):
+        return float(freq_par)
+    else:
+        return int(freq_par)
