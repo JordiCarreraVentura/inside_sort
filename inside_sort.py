@@ -65,16 +65,16 @@ class Argparser:
         self.parser.add_argument(
             '--min_wfreq',
             help=HELP['min_wfreq'],
-            type=int,
-            default=3
+#             type=int,
+            default='3'
         )
             #
             #    Parameter: maximum word frequency
         self.parser.add_argument(
             '--max_wfreq',
             help=HELP['max_wfreq'],
-            #type=int,
-            default=0.2
+#             type=int,
+            default='0.2'
         )
             #
             #    Parameter: co-occurrence window size

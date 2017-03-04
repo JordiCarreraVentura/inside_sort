@@ -67,7 +67,7 @@ def encode(string):
         return string
 
 
-def format_min_wfreq(freq_par):
+def format_wfreq(freq_par):
     if FLOAT.match(freq_par):
         return float(freq_par)
     else:
